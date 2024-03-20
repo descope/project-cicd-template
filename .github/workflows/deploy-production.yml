@@ -1,0 +1,129 @@
+name: Deploy to Production Project
+
+on:
+  push:
+    branches: [ 'main' ]
+  workflow_dispatch:
+    inputs:
+      force_import:
+        description: 'Skip checking for recent changes'
+        type: boolean
+        required: true
+        default: true
+      secrets:
+        description: 'An optional JSON object with additional secrets to inject into the snapshot data'
+        default: ''
+
+env:
+  FILES_PATH: 'DescopeSnapshot'
+
+jobs:
+  check:
+    name: Check For Changes
+    if: ${{ !inputs.force_import }}
+    runs-on: ubuntu-latest
+    outputs:
+      has_changes: ${{ steps.check.outputs.has_changes }}    
+    steps:
+      - name: Checkout Files   
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check For Changes
+        id: check
+        shell: bash
+        run: |
+          echo 'Checking for project files to deploy'
+          if [ ! -d "${{ env.FILES_PATH }}" ]; then
+            MSG='There are no project files to deploy in the `${{ env.FILES_PATH }}` directory.'
+            echo "$MSG"
+            echo '## Deployment Skipped' >> $GITHUB_STEP_SUMMARY
+            echo ":information_source: $MSG" >> $GITHUB_STEP_SUMMARY
+          elif [ -n "$(git show HEAD --oneline --name-only -- "${{ env.FILES_PATH }}" 2> /dev/null)" ]; then
+            echo 'has_changes=true' >> $GITHUB_OUTPUT
+          else
+            MSG='There were no changes in the latest commit to files in the `${{ env.FILES_PATH }}` directory.'
+            echo "$MSG"
+            echo '## Deployment Skipped' >> $GITHUB_STEP_SUMMARY
+            echo ":information_source: $MSG" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  validate:
+    name: Validate Snapshot
+    if: ${{ (always() && inputs.force_import) || needs.check.outputs.has_changes == 'true' }}
+    needs: check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Files   
+        uses: actions/checkout@v4
+
+      - name: Validate Snapshot
+        id: validate
+        uses: descope/descopecli/.github/actions/import@main
+        with:
+          project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
+          management_key: ${{ secrets.MANAGEMENT_KEY }}
+          files_path: ${{ env.FILES_PATH }}
+          secrets: ${{ inputs.secrets }}
+          validate_only: true
+
+      - name: Notify If Missing Secrets
+        if: ${{ always() && steps.validate.outputs.failure_file != '' }}
+        shell: bash
+        env:
+          FAILURE_TEXT: |
+            ## Deployment Aborted
+
+            #### Validation Errors
+            The deployment operation cannot proceed because some project data could not
+            be validated or it is missing values for required secrets.
+
+            FAILURE_LIST
+          SECRETS_TEXT: |
+            #### How to Continue
+            You can resume the deployment by copying the JSON object below and filling in the
+            missing values in each `secrets` field. You should then [dispatch the workflow](WORKFLOW_LINK) manually
+            by pressing the `Run workflow` button and pasting the JSON object with the secrets
+            into the text field in the dialog.
+
+            ```json
+            SECRETS_JSON
+            ```
+
+            > [!NOTE]
+            > The JSON object will be pasted as one line of text without any line breaks.
+        run: |
+          FAILURE_FILE=$(mktemp)
+          while read -r line; do echo "- \`$line\`" >> $FAILURE_FILE; done < ${{ steps.validate.outputs.failure_file }}
+          echo "$FAILURE_TEXT" | sed \
+            -e "/FAILURE_LIST/r $FAILURE_FILE" \
+            -e "//d" >> $GITHUB_STEP_SUMMARY
+          if [ -n "${{ steps.validate.outputs.missing_secrets_file }}" ]; then
+            WORKFLOW_URL="$(echo "$GITHUB_SERVER_URL/$GITHUB_WORKFLOW_REF" | sed -e 's|/.github/workflows/|/actions/workflows/|' -e 's|@.*$||')"
+            SECRETS_FILE=$(mktemp)
+            cat ${{ steps.validate.outputs.missing_secrets_file }} > $SECRETS_FILE
+            echo "$SECRETS_TEXT" | sed \
+              -e "s|WORKFLOW_LINK|$WORKFLOW_URL|" \
+              -e "/SECRETS_JSON/r $SECRETS_FILE" \
+              -e "//d" >> $GITHUB_STEP_SUMMARY
+          fi
+
+  deploy:
+    name: Deploy To Project
+    if: ${{ always() && needs.validate.result == 'success' }}
+    needs: validate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Files   
+        uses: actions/checkout@v4
+
+      - name: Import Snapshot
+        id: import
+        uses: descope/descopecli/.github/actions/import@main
+        with:
+          project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
+          management_key: ${{ secrets.MANAGEMENT_KEY }}
+          files_path: ${{ env.FILES_PATH }}
+          secrets: ${{ inputs.secrets }}
+          import_only: true

@@ -1,0 +1,18 @@
+name: Create Pull Request from Staging Project
+
+on:
+  workflow_dispatch:
+
+jobs:
+  run:
+    name: Run with Staging
+    uses: ./.github/workflows/create-pullreq.yml
+    with:
+      project_id: ${{ vars.STAGING_PROJECT_ID }}
+      pullreq_body: |
+        ### Description
+        Snapshot exported from staging project.
+        
+        ### Changes
+        CHANGES_LIST
+    secrets: inherit

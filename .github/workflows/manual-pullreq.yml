@@ -1,0 +1,20 @@
+name: 'Manual Pull Request'
+
+on:
+  workflow_dispatch:
+    inputs:
+      project_id:
+        description: 'The id of the Descope project to update the repository from'
+        required: true
+      management_key:
+        description: 'The management key for the Descope project'
+        required: true
+
+jobs:
+  run:
+    name: Run Manually
+    uses: ./.github/workflows/create-pullreq.yml
+    with:
+      project_id: ${{ inputs.project_id }}
+    secrets:
+      management_key: ${{ inputs.management_key }}
