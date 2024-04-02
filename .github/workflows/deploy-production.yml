@@ -60,7 +60,7 @@ jobs:
 
       - name: Validate Snapshot
         id: validate
-        uses: descope/descopecli/.github/actions/import@main
+        uses: descope/descopecli/.github/actions/import@v0.8.2
         with:
           project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
           management_key: ${{ secrets.MANAGEMENT_KEY }}
@@ -120,7 +120,7 @@ jobs:
 
       - name: Import Snapshot
         id: import
-        uses: descope/descopecli/.github/actions/import@main
+        uses: descope/descopecli/.github/actions/import@v0.8.2
         with:
           project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
           management_key: ${{ secrets.MANAGEMENT_KEY }}
