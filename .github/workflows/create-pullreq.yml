@@ -45,14 +45,14 @@ jobs:
           management_key: ${{ secrets.management_key }}
           files_path: ${{ env.FILES_PATH }}
 
-      - name: Check For Changes
-        if: steps.export.outputs.changes_file == ''
-        uses: andymckay/cancel-action@0.4
-
-      - name: Notify If Cancelled
+      - name: Cancel If No Changes
         if: steps.export.outputs.changes_file == ''
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
+          echo 'Cancelling workflow...'
+          gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
           echo '## Workflow Skipped' >> $GITHUB_STEP_SUMMARY
           echo ':information_source: There are no changes to commit after exporting snapshot.' >> $GITHUB_STEP_SUMMARY
 
