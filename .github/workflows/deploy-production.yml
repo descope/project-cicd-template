@@ -63,7 +63,7 @@ jobs:
         uses: descope/descopecli/.github/actions/import@v0.8.2
         with:
           project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
-          management_key: ${{ secrets.MANAGEMENT_KEY }}
+          management_key: ${{ secrets.PROD_MANAGEMENT_KEY || secrets.MANAGEMENT_KEY }}
           files_path: ${{ env.FILES_PATH }}
           secrets: ${{ inputs.secrets }}
           validate_only: true
@@ -123,7 +123,7 @@ jobs:
         uses: descope/descopecli/.github/actions/import@v0.8.2
         with:
           project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
-          management_key: ${{ secrets.MANAGEMENT_KEY }}
+          management_key: ${{ secrets.PROD_MANAGEMENT_KEY || secrets.MANAGEMENT_KEY }}
           files_path: ${{ env.FILES_PATH }}
           secrets: ${{ inputs.secrets }}
           import_only: true
