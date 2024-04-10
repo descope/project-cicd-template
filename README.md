@@ -48,7 +48,7 @@ If you're already using Descope you'll need some information from the [Descope c
 The workflows need a Descope management key so they can call the snapshot export and import APIs. They also need to know which Descope projects they're working with. The easiest way to do this is to set these values as secrets and variables in our GitHub repository.
 
 1. In your repo's `Settings` page, go to `Secrets and variables` and add a repository secret called `MANAGEMENT_KEY` with the value of the key created above.
-- Optional: Suppose you have restricted the management key access to your production project, creating a management key within the Descope console that only has access to the production project. In that case, you can also add `PROD_MANAGEMENT_KEY` as a secret. If `PROD_MANAGEMENT_KEY` is configured, it will be used for production actions, and `MANAGEMENT_KEY` will be used for staging actions
+- Optional: Suppose you have restricted the management key access to your production project, creating a management key within the Descope console that only has access to the production project. In that case, you can also add `PRODUCTION_MANAGEMENT_KEY` as a secret. If `PRODUCTION_MANAGEMENT_KEY` is configured, it will be used for production actions, and `MANAGEMENT_KEY` will be used for staging actions
 2. Switch to the `Variables` tab.
 3. Create a repository variable called `PRODUCTION_PROJECT_ID` variable and set it to the `Project ID` of your `production` Descope project.
 4. Do the same thing with a `STAGING_PROJECT_ID` variable and set it to the `Project ID` of your `staging` Descope project.
