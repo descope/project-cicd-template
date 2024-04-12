@@ -1,7 +1,7 @@
 
 <div align="center">
   <a href="https://github.com/descope/project-cicd-template">
-    <img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/descope-logo.png" alt="Descope Logo" width="128" height="128">
+    <img src=".github/images/descope-logo.png" alt="Descope Logo" width="160" height="160">
   </a>
 
   <h3 align="center">Descope CI/CD Template</h3>
@@ -40,7 +40,7 @@ If you're already using Descope you'll need some information from the [Descope c
 3. You'll also need to generate a management key in the [Company page](https://app.descope.com/settings/company/managementkeys).
 
 <div align="center">
-  <img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/readme-project.png" alt="Project details" width="500">
+  <img src=".github/images/readme-project.png" alt="Project details" width="500">
 </div>
 
 ### Configuration
@@ -54,9 +54,9 @@ The workflows need a Descope management key so they can call the snapshot export
 4. Do the same thing with a `STAGING_PROJECT_ID` variable and set it to the `Project ID` of your `staging` Descope project.
 
 <br />
-<img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/readme-secrets.png" alt="Secrets panel">
+<img src=".github/images/readme-secrets.png" alt="Secrets panel">
 <br />
-<img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/readme-variables.png" alt="Variables panel">
+<img src=".github/images/readme-variables.png" alt="Variables panel">
 <br />
 
 ### Permissions
@@ -69,7 +69,7 @@ The workflows need to be allowed to create pull requests and update the reposito
 4. Make sure the `Allow GitHub Actions to create and approve pull requests` option is checked.
 
 <div align="center">
-  <img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/readme-permissions.png" alt="Pull request" width="500">
+  <img src=".github/images/readme-permissions.png" alt="Pull request" width="500">
 </div>
 <br />
 
@@ -87,13 +87,13 @@ At first, the repository will be empty. We'll want to get the current of the Des
 You should now see a `ProjectSnapshot` folder in the repo with files representing all the settings and configurations of your project. Note that the path where the files are stored can be customized in the workflow files.
 
 <div align="center">
-  <img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/readme-snapshot.png" alt="Pull request" width="500">
+  <img src=".github/images/readme-snapshot.png" alt="Pull request" width="500">
 </div>
 <br />
 
 You can now try to introduce a small change to your `staging` project by going to the Descope console and changing a setting. After that you can repeate the steps above and observe that the diff in the created Pull Request reflects the change that you made.
 
 <div align="center">
-  <img src="https://github.com/descope/project-cicd-template/blob/main/.github/images/readme-pullreq.png" alt="Pull request" width="500">
+  <img src=".github/images/readme-pullreq.png" alt="Pull request" width="500">
 </div>
 <br />
