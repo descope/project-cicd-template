@@ -39,7 +39,7 @@ jobs:
 
       - name: Export Snapshot
         id: export
-        uses: descope/descopecli/.github/actions/export@v0.8.6
+        uses: descope/descopecli/.github/actions/export@v0.8.11
         with:
           project_id: ${{ inputs.project_id }}
           management_key: ${{ secrets.management_key }}
