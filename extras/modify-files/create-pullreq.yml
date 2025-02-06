@@ -44,9 +44,48 @@ jobs:
           project_id: ${{ inputs.project_id }}
           management_key: ${{ secrets.management_key }}
           files_path: ${{ env.FILES_PATH }}
+      
+      - name: Process Snapshot
+        if: steps.export.outputs.changes_file != ''
+        id: process
+        shell: bash
+        run: |
+          echo 'Processing snapshot...'
+          TEMP_FILE=$(mktemp)
+
+          # modifies a snapshot file using jq to overwrite a specific key with the passed json value, and if
+          # there are no changes in the file after updating it we remove it from the list of changed files
+          function modifyFile {
+            set +e
+            
+            local FILE="${{ env.FILES_PATH }}/$1"
+            local KEY="$2"
+            local VALUE="$3"
+
+            jq "$KEY = $VALUE" "$FILE" > "$TEMP_FILE"
+            mv "$TEMP_FILE" "$FILE"
+
+            if git diff --exit-code "$FILE" &> /dev/null; then
+              cat "${{ steps.export.outputs.changes_file }}" | grep -v "$FILE" > "$TEMP_FILE"
+              mv "$TEMP_FILE" "${{ steps.export.outputs.changes_file }}"
+            fi
+          }
+
+          # json keys and values are passed in single quotes
+          modifyFile project.json '.cookiePolicy' '3'
+
+          # string values require double quotes in single quotes to preserve them as strings
+          modifyFile project.json '.domain' '"auth.example.com"'
+
+          # make sure we don't create an empty pull request if there aren't any changes
+          if [ -n "$(git status --porcelain=v1 2> /dev/null)" ]; then
+            echo 'has_changes=true' >> $GITHUB_OUTPUT
+          else
+            echo "No changes after processing snapshot"
+          fi
 
       - name: Cancel If No Changes
-        if: steps.export.outputs.changes_file == ''
+        if: steps.process.outputs.has_changes != 'true'
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -58,7 +97,7 @@ jobs:
 
       - name: Compose Details
         id: compose
-        if: steps.export.outputs.changes_file != ''
+        if: steps.process.outputs.has_changes == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           DEFAULT_NAME: '${{ github.actor }}'
@@ -79,7 +118,7 @@ jobs:
           echo pullreq_author="$AUTHOR" >> $GITHUB_OUTPUT
 
       - name: Create Pull Request
-        if: steps.export.outputs.changes_file != ''
+        if: steps.process.outputs.has_changes == 'true'
         uses: peter-evans/create-pull-request@v6
         with:
           branch: ${{ env.BRANCH_NAME }}

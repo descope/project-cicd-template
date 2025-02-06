@@ -25,6 +25,9 @@ You can use this repo to:
 * Automatically deploy changes after pull requests are merged to import them into your production project
 * Customize the workflows as you see fit
 
+> [!IMPORTANT]
+> The main workflow files are in the `.github/workflows` folder, and they might not show up unless you configure your file manager to show hidden files.
+
 <br />
 
 ## Getting Started
