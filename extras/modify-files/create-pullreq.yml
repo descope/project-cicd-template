@@ -1,0 +1,131 @@
+name: '[Reusable] Pull Request Workflow'
+
+on:
+  workflow_call:
+    inputs:
+      project_id:
+        description: 'The id of the Descope project to update the repository from'
+        required: true
+        type: string
+      pullreq_title:
+        description: 'The title of the pull request'
+        type: string
+        default: 'Update snapshot for Descope project'
+      pullreq_body:
+        description: 'The body of the pull request (use the CHANGES_LIST placeholder for a list of changed files)'
+        type: string
+        default: |
+          ### Description
+          Snapshot exported from project `${{ inputs.project_id }}`.
+          
+          ### Changes
+          CHANGES_LIST
+    secrets:
+      management_key:
+        description: 'The management key for the Descope project'
+        required: true
+
+env:
+  FILES_PATH: 'ProjectSnapshot'
+  BRANCH_NAME: 'descope/update-snapshot'
+
+jobs:
+  update:
+    name: Create Pull Request
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Files   
+        uses: actions/checkout@v4
+
+      - name: Export Snapshot
+        id: export
+        uses: descope/descopecli/.github/actions/export@v0.8.11
+        with:
+          project_id: ${{ inputs.project_id }}
+          management_key: ${{ secrets.management_key }}
+          files_path: ${{ env.FILES_PATH }}
+      
+      - name: Process Snapshot
+        if: steps.export.outputs.changes_file != ''
+        id: process
+        shell: bash
+        run: |
+          echo 'Processing snapshot...'
+          TEMP_FILE=$(mktemp)
+
+          # modifies a snapshot file using jq to overwrite a specific key with the passed json value, and if
+          # there are no changes in the file after updating it we remove it from the list of changed files
+          function modifyFile {
+            set +e
+            
+            local FILE="${{ env.FILES_PATH }}/$1"
+            local KEY="$2"
+            local VALUE="$3"
+
+            jq "$KEY = $VALUE" "$FILE" > "$TEMP_FILE"
+            mv "$TEMP_FILE" "$FILE"
+
+            if git diff --exit-code "$FILE" &> /dev/null; then
+              cat "${{ steps.export.outputs.changes_file }}" | grep -v "$FILE" > "$TEMP_FILE"
+              mv "$TEMP_FILE" "${{ steps.export.outputs.changes_file }}"
+            fi
+          }
+
+          # json keys and values are passed in single quotes
+          modifyFile project.json '.cookiePolicy' '3'
+
+          # string values require double quotes in single quotes to preserve them as strings
+          modifyFile project.json '.domain' '"auth.example.com"'
+
+          # make sure we don't create an empty pull request if there aren't any changes
+          if [ -n "$(git status --porcelain=v1 2> /dev/null)" ]; then
+            echo 'has_changes=true' >> $GITHUB_OUTPUT
+          else
+            echo "No changes after processing snapshot"
+          fi
+
+      - name: Cancel If No Changes
+        if: steps.process.outputs.has_changes != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          echo 'Cancelling workflow...'
+          gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
+          echo '## Workflow Skipped' >> $GITHUB_STEP_SUMMARY
+          echo ':information_source: There are no changes to commit after exporting snapshot.' >> $GITHUB_STEP_SUMMARY
+
+      - name: Compose Details
+        id: compose
+        if: steps.process.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DEFAULT_NAME: '${{ github.actor }}'
+          DEFAULT_MAIL: '${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com'
+          BODY: ${{ inputs.pullreq_body }}
+        run: |
+          export PATH_PREFIX='${{ env.FILES_PATH }}/'
+          CHANGES_FILE=$(mktemp)
+          while read -r line; do echo "- \`${line#$PATH_PREFIX}\`" >> $CHANGES_FILE; done < ${{ steps.export.outputs.changes_file }}
+
+          BODY_FILE=$(mktemp)
+          echo "$BODY" | sed -e "/CHANGES_LIST/r $CHANGES_FILE" -e "//d" > $BODY_FILE
+          echo pullreq_body="$BODY_FILE" >> $GITHUB_OUTPUT
+
+          NAME="$(gh api /users/$GITHUB_ACTOR | jq -r '.name // ""')"
+          MAIL="$(gh api /users/$GITHUB_ACTOR | jq -r '.email // ""')"
+          AUTHOR="${NAME:-$DEFAULT_NAME} <${MAIL:-$DEFAULT_MAIL}>"
+          echo pullreq_author="$AUTHOR" >> $GITHUB_OUTPUT
+
+      - name: Create Pull Request
+        if: steps.process.outputs.has_changes == 'true'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          branch: ${{ env.BRANCH_NAME }}
+          delete-branch: true
+          assignees: ${{ github.actor }}
+          author: ${{ steps.compose.outputs.pullreq_author }}
+          committer: ${{ steps.compose.outputs.pullreq_author }}
+          commit-message: ${{ inputs.pullreq_title }}
+          title: ${{ inputs.pullreq_title }}
+          body-path: ${{ steps.compose.outputs.pullreq_body }}
