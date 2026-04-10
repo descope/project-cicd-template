@@ -43,8 +43,8 @@ jobs:
         with:
           project_id: ${{ inputs.project_id }}
           management_key: ${{ secrets.management_key }}
-          files_path: ${{ env.FILES_PATH }}
           descope_base_url: ${{ vars.DESCOPE_BASE_URL }}
+          files_path: ${{ env.FILES_PATH }}
       
       - name: Process Snapshot
         if: steps.export.outputs.changes_file != ''
