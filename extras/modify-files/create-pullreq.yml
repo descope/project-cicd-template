@@ -43,6 +43,7 @@ jobs:
         with:
           project_id: ${{ inputs.project_id }}
           management_key: ${{ secrets.management_key }}
+          descope_base_url: ${{ vars.DESCOPE_BASE_URL }}
           files_path: ${{ env.FILES_PATH }}
       
       - name: Process Snapshot

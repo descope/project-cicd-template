@@ -64,6 +64,7 @@ jobs:
         with:
           project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
           management_key: ${{ secrets.PRODUCTION_MANAGEMENT_KEY || secrets.MANAGEMENT_KEY }}
+          descope_base_url: ${{ vars.DESCOPE_BASE_URL }}
           files_path: ${{ env.FILES_PATH }}
           secrets: ${{ inputs.secrets }}
           validate_only: true
@@ -124,6 +125,7 @@ jobs:
         with:
           project_id: ${{ vars.PRODUCTION_PROJECT_ID }}
           management_key: ${{ secrets.PRODUCTION_MANAGEMENT_KEY || secrets.MANAGEMENT_KEY }}
+          descope_base_url: ${{ vars.DESCOPE_BASE_URL }}
           files_path: ${{ env.FILES_PATH }}
           secrets: ${{ inputs.secrets }}
           import_only: true
