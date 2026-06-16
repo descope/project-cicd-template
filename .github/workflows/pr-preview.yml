@@ -1,0 +1,108 @@
+name: Create PR Preview Project
+
+# Clones the staging project into a fresh per-PR project and imports the PR
+# branch's snapshot into it, so reviewers can test the proposed changes in an
+# isolated Descope project. The project is named "pr-<number>" and is torn down
+# by pr-cleanup.yml when the PR closes.
+#
+# Requires a COMPANY-scoped management key (cloning/listing projects is a
+# company-level operation) stored in the COMPANY_MANAGEMENT_KEY secret.
+
+on:
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+    # only spin up a preview when the project config actually changes;
+    # remove this filter to create a preview for every PR
+    paths: [ 'ProjectSnapshot/**' ]
+
+# one preview per PR; cancel an in-flight run when new commits are pushed
+concurrency:
+  group: descope-preview-${{ github.event.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  FILES_PATH: 'ProjectSnapshot'
+  CLI_VERSION: 'v0.8.11'
+  PROJECT_NAME: 'pr-${{ github.event.number }}'
+
+jobs:
+  preview:
+    name: Clone Staging and Import Snapshot
+    runs-on: ubuntu-latest
+    env:
+      DESCOPE_MANAGEMENT_KEY: ${{ secrets.COMPANY_MANAGEMENT_KEY }}
+      DESCOPE_BASE_URL: ${{ vars.DESCOPE_BASE_URL }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout Files
+        uses: actions/checkout@v4
+
+      - name: Install Descope CLI
+        uses: descope/descopecli/.github/actions/install@v0.8.11
+        with:
+          version: ${{ env.CLI_VERSION }}
+
+      - name: Find or Create Preview Project
+        id: project
+        shell: bash
+        run: |
+          # reuse the PR's project if it already exists (e.g. on a later push),
+          # otherwise clone staging into a new "pr-<number>" project
+          PROJECT_ID="$(descope project list --json | jq -r --arg name "$PROJECT_NAME" \
+            'first(.projects[] | select(.name == $name) | .id) // ""')"
+
+          if [ -n "$PROJECT_ID" ]; then
+            echo "Reusing existing preview project $PROJECT_ID"
+          else
+            echo "Cloning staging project ${{ vars.STAGING_PROJECT_ID }} into $PROJECT_NAME"
+            PROJECT_ID="$(descope project clone "${{ vars.STAGING_PROJECT_ID }}" "$PROJECT_NAME" --json | jq -r '.result.projectId // ""')"
+            echo "Created preview project $PROJECT_ID"
+          fi
+
+          if [ -z "$PROJECT_ID" ]; then
+            echo "::error::Failed to resolve preview project id for $PROJECT_NAME"
+            exit 1
+          fi
+          echo "project_id=$PROJECT_ID" >> "$GITHUB_OUTPUT"
+
+      - name: Import Snapshot
+        shell: bash
+        run: |
+          PROJECT_ID="${{ steps.project.outputs.project_id }}"
+          # a freshly cloned project may take a moment to provision, so retry
+          for attempt in 1 2 3; do
+            if descope project snapshot validate "$PROJECT_ID" --path "$FILES_PATH" \
+               && descope project snapshot import "$PROJECT_ID" --path "$FILES_PATH"; then
+              exit 0
+            fi
+            echo "Import attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
+          echo "::error::Failed to import snapshot into $PROJECT_ID"
+          exit 1
+
+      - name: Comment Preview Details
+        shell: bash
+        env:
+          PROJECT_ID: ${{ steps.project.outputs.project_id }}
+        run: |
+          BODY="$(cat <<EOF
+          <!-- descope-preview -->
+          ### Descope preview project
+
+          A preview project was created from staging with this PR's snapshot applied.
+
+          - **Project name:** \`$PROJECT_NAME\`
+          - **Project ID:** \`$PROJECT_ID\`
+          - Open the [Descope console](https://app.descope.com) and switch to this project to test the changes.
+
+          > [!NOTE]
+          > Cloning copies settings and configurations only, not users, tenants, or access keys.
+          > This project is deleted automatically when the PR is closed.
+          EOF
+          )"
+          gh pr comment "${{ github.event.number }}" --edit-last --create-if-none --body "$BODY"

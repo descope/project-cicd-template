@@ -1,0 +1,48 @@
+name: Delete PR Preview Project
+
+# Tears down the per-PR preview project created by pr-preview.yml when the PR
+# is closed (whether merged or not). Looks the project up by its "pr-<number>"
+# name and deletes it; no-ops if there is nothing to delete.
+
+on:
+  pull_request:
+    types: [ closed ]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+env:
+  CLI_VERSION: 'v0.8.11'
+  PROJECT_NAME: 'pr-${{ github.event.number }}'
+
+jobs:
+  cleanup:
+    name: Delete Preview Project
+    runs-on: ubuntu-latest
+    env:
+      DESCOPE_MANAGEMENT_KEY: ${{ secrets.COMPANY_MANAGEMENT_KEY }}
+      DESCOPE_BASE_URL: ${{ vars.DESCOPE_BASE_URL }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Install Descope CLI
+        uses: descope/descopecli/.github/actions/install@v0.8.11
+        with:
+          version: ${{ env.CLI_VERSION }}
+
+      - name: Delete Preview Project
+        shell: bash
+        run: |
+          PROJECT_ID="$(descope project list --json | jq -r --arg name "$PROJECT_NAME" \
+            'first(.projects[] | select(.name == $name) | .id) // ""')"
+
+          if [ -z "$PROJECT_ID" ]; then
+            echo "No preview project named $PROJECT_NAME to delete"
+            exit 0
+          fi
+
+          echo "Deleting preview project $PROJECT_ID ($PROJECT_NAME)"
+          descope project delete "$PROJECT_ID" --force
+
+          gh pr comment "${{ github.event.number }}" --body \
+            "Deleted Descope preview project \`$PROJECT_NAME\` (\`$PROJECT_ID\`)."
